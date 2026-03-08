@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Cirreum.Identity.EntraExternalId</RootNamespace>
+    <Description>Microsoft Entra External ID integration for user provisioning during token issuance (onTokenIssuanceStart). Validates callbacks, provisions users, and returns custom claims for ID tokens.</Description>
+    <PackageTags>cirreum;entra;external-id;identity;provisioning;minimal-api</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.*" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.*" />
+  </ItemGroup>
+
+</Project>
