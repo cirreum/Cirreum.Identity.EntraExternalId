@@ -14,7 +14,7 @@
 
 	<!-- Local Release Version -->
 	<PropertyGroup Label="Local Release Version" Condition="'$(IsLocalBuild)' == 'true' And '$(Configuration)'=='Release'">
-		<VersionPrefix Condition="'$(VersionPrefix)' == ''">1.0.100</VersionPrefix>
+		<VersionPrefix Condition="'$(VersionPrefix)' == ''">2.0.100</VersionPrefix>
 		<VersionSuffix Condition="'$(VersionSuffix)' == ''">-rc</VersionSuffix>
 	</PropertyGroup>
 
