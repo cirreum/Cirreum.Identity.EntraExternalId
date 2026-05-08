@@ -77,7 +77,7 @@ public sealed class EntraExternalIdIdentityProviderRegistrar
 		// Per-instance token validator — holds the OIDC discovery ConfigurationManager and
 		// its cached signing keys for this tenant. Singleton scope is required so the key
 		// cache persists across requests.
-		services.AddKeyedSingleton<EntraTokenValidator>(key, (sp, _) =>
+		services.AddKeyedSingleton(key, (sp, _) =>
 			new EntraTokenValidator(
 				settings,
 				sp.GetRequiredService<ILogger<EntraTokenValidator>>()));
