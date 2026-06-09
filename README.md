@@ -3,7 +3,7 @@
 [![NuGet Version](https://img.shields.io/nuget/v/Cirreum.Identity.EntraExternalId.svg?style=flat-square&labelColor=1F1F1F&color=003D8F)](https://www.nuget.org/packages/Cirreum.Identity.EntraExternalId/)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/Cirreum.Identity.EntraExternalId.svg?style=flat-square&labelColor=1F1F1F&color=003D8F)](https://www.nuget.org/packages/Cirreum.Identity.EntraExternalId/)
 [![GitHub Release](https://img.shields.io/github/v/release/cirreum/Cirreum.Identity.EntraExternalId?style=flat-square&labelColor=1F1F1F&color=FF3B2E)](https://github.com/cirreum/Cirreum.Identity.EntraExternalId/releases)
-[![License](https://img.shields.io/github/license/cirreum/Cirreum.Identity.EntraExternalId?style=flat-square&labelColor=1F1F1F&color=F2F2F2)](https://github.com/cirreum/Cirreum.Identity.EntraExternalId/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-F2F2F2?style=flat-square&labelColor=1F1F1F)](https://github.com/cirreum/Cirreum.Identity.EntraExternalId/blob/main/LICENSE)
 [![.NET](https://img.shields.io/badge/.NET-10.0-003D8F?style=flat-square&labelColor=1F1F1F)](https://dotnet.microsoft.com/)
 
 **Microsoft Entra External ID integration for Cirreum — the Infrastructure-layer library that implements the custom authentication extension (`onTokenIssuanceStart`) callback: validates Entra-signed tokens, provisions users, and returns custom claims for the issued token.**
