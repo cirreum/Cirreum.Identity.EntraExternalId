@@ -82,41 +82,45 @@ internal sealed partial class EntraExternalIdHandler(
 		};
 
 		var provisioner = services.GetRequiredKeyedService<IUserProvisioner>(settings.Source);
+		using var trace = ProvisioningTelemetry.StartProvision("entra", settings.Source);
+
 		ProvisionResult provisionResult;
 		try {
 			provisionResult = await provisioner.ProvisionAsync(provisionContext, cancellationToken);
 		} catch (Exception ex) {
 			Log.ProvisionerFailed(logger, ex, provisionContext.ExternalUserId, settings.Source);
+			trace.Failed();
 			return Results.Problem("User provisioning failed.", statusCode: 500);
 		}
 
 		// 6. Map provision result to response
 		if (provisionResult is ProvisionResult.Denied) {
 			Log.UserDenied(logger, provisionContext.ExternalUserId, settings.Source);
+			trace.Denied();
 			return Results.Forbid();
 		}
 
-		if (provisionResult is not ProvisionResult.Allowed { Roles: { Count: > 0 } roles }) {
-			if (provisionResult is ProvisionResult.Allowed) {
-				Log.ProvisionerAllowedWithNoRoles(logger, provisionContext.ExternalUserId, settings.Source);
-			} else {
-				Log.ProvisionerFailed(logger, null, provisionContext.ExternalUserId, settings.Source);
-			}
+		if (provisionResult is not ProvisionResult.Allowed { Claims: var identityClaims }) {
+			Log.ProvisionerFailed(logger, null, provisionContext.ExternalUserId, settings.Source);
+			trace.Failed();
 			return Results.Problem("User provisioning failed.", statusCode: 500);
 		}
 
-		var rolesStr = string.Join(", ", roles);
-		Log.IssuingRoles(logger, rolesStr, provisionContext.ExternalUserId, context.CorrelationId, settings.Source);
+		// An allowed result with no claims is valid — the app admits the user but mints nothing
+		// beyond what the IdP itself issues.
+		var claimMap = identityClaims.ToClaimMap();
+		if (logger.IsEnabled(LogLevel.Information)) {
+			var claims = string.Join(", ", claimMap.Keys);
+			Log.IssuingClaims(logger, claims, provisionContext.ExternalUserId, context.CorrelationId, settings.Source);
+		}
+		trace.Allowed(claimMap.Count);
 
 		// 7. Build and return response
 		var response = new EntraClaimsResponse {
 			Data = new EntraResponseData {
 				Actions = [
 					new EntraTokenAction {
-						Claims = new EntraCustomClaims {
-							CorrelationId = context.CorrelationId,
-							CustomRoles = [.. roles]
-						}
+						Claims = EntraClaimsPayload.From(context.CorrelationId, claimMap)
 					}
 				]
 			}
@@ -147,13 +151,10 @@ internal sealed partial class EntraExternalIdHandler(
 		[LoggerMessage(Level = LogLevel.Information, Message = "User '{UserId}' was denied by provisioner for instance '{Source}'. Blocking token issuance.")]
 		internal static partial void UserDenied(ILogger logger, string userId, string source);
 
-		[LoggerMessage(Level = LogLevel.Warning, Message = "Provisioner returned Allowed with no roles for user '{UserId}' on instance '{Source}'. Blocking token issuance.")]
-		internal static partial void ProvisionerAllowedWithNoRoles(ILogger logger, string userId, string source);
-
 		[LoggerMessage(Level = LogLevel.Error, Message = "Provisioner failed for user '{UserId}' on instance '{Source}'. Blocking token issuance.")]
 		internal static partial void ProvisionerFailed(ILogger logger, Exception? ex, string userId, string source);
 
-		[LoggerMessage(Level = LogLevel.Information, Message = "Issuing roles '{Roles}' for user '{UserId}' (correlation: {CorrelationId}, instance: {Source}).")]
-		internal static partial void IssuingRoles(ILogger logger, string roles, string userId, string correlationId, string source);
+		[LoggerMessage(Level = LogLevel.Information, Message = "Issuing claims '{Claims}' for user '{UserId}' (correlation: {CorrelationId}, instance: {Source}).")]
+		internal static partial void IssuingClaims(ILogger logger, string claims, string userId, string correlationId, string source);
 	}
 }

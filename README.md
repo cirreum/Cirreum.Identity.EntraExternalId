@@ -14,7 +14,7 @@
 
 1. Authenticate itself with a Microsoft-signed bearer token (validated against Entra's OIDC discovery metadata).
 2. Supply the authenticating user's context (external ID, email, correlation ID, calling service principal).
-3. Receive custom claims — the provisioner's role list — to be embedded in the issued token.
+3. Receive custom claims — the provisioner's full `custom*` claim set (roles, name, tenant, …) — to be embedded in the issued token.
 
 ## Installation
 
@@ -22,13 +22,15 @@ Apps do **not** reference this package directly. Install `Cirreum.Runtime.Identi
 
 ## Wire contract (Microsoft-defined)
 
-The request and response shapes are fixed by Microsoft's [custom claims provider](https://learn.microsoft.com/en-us/entra/identity-platform/custom-claims-provider-overview) contract. This package handles both sides — apps only supply an `IUserProvisioner` that returns `ProvisionResult.Allow(roles)` or `Deny()`.
+The request and response shapes are fixed by Microsoft's [custom claims provider](https://learn.microsoft.com/en-us/entra/identity-platform/custom-claims-provider-overview) contract. This package handles both sides — apps only supply an `IUserProvisioner` that returns `ProvisionResult.Allow(claims)` or `Deny()`.
 
 ### Request
 
 Entra posts a JWT-authenticated payload describing the authentication context (calling app, user, correlation ID, etc.). The package validates and unpacks it internally.
 
 ### Response on Allow
+
+Every claim the provisioner mints lives in a `custom*` namespace and is emitted as a **flat inline claim** so it stays natively consumable. Entra claim values are String or String[] only, so a single-valued claim serializes as a scalar and roles (and any multi-valued claim) serialize as an array:
 
 ```json
 {
@@ -39,13 +41,17 @@ Entra posts a JWT-authenticated payload describing the authentication context (c
         "@odata.type": "microsoft.graph.tokenIssuanceStart.provideClaimsForToken",
         "claims": {
           "correlationId": "<echoed>",
-          "customRoles": ["role1", "role2"]
+          "customRoles": ["role1", "role2"],
+          "customName": "Jane Smith",
+          "customTenant": "acme"
         }
       }
     ]
   }
 }
 ```
+
+A provisioner that admits the user but mints nothing returns a 200 carrying only `correlationId`.
 
 ### Response on Deny or error
 
@@ -54,7 +60,7 @@ Entra posts a JWT-authenticated payload describing the authentication context (c
 | 401 Unauthorized | Missing / invalid bearer token |
 | 400 Bad Request  | Malformed JSON, missing `correlationId`, or missing user ID |
 | 403 Forbidden    | `clientServicePrincipal.appId` not in allowlist, OR provisioner returned `Deny` |
-| 500 Internal Server Error | Provisioner threw, or returned `Allow` with zero roles |
+| 500 Internal Server Error | Provisioner threw |
 
 ## Configuration
 
@@ -108,7 +114,7 @@ Configure multiple entries under `Instances:` to serve multiple Entra External I
 2. In the app's manifest, set `acceptMappedClaims` to `true` in the `api` section. (There is no Azure Portal UI toggle for this — manifest edit only.)
 3. Create a Custom Authentication Extension of type **onTokenIssuanceStart**, targeting the `Route` URL from your configuration.
 4. Attach the extension to the relevant user flow(s) and select the claims you want to issue.
-5. On the client app registration(s) consuming the flow, add the custom `customRoles` claim to the ID token claim configuration (and remap to `roles` on the client — see `Cirreum.Components.WebAssembly.Authentication`).
+5. On the client app registration(s) consuming the flow, add each `custom*` claim the provisioner mints (`customRoles`, `customName`, …) to the ID token claim configuration. The client canonicalizes `customRoles → roles`, `customName → name`, … before `ClaimsPrincipal` construction (see `Cirreum.Components.WebAssembly.Authentication`), or you canonicalize at the IdP and skip the client extender.
 
 For the full setup walkthrough, see Microsoft's docs:
 <https://learn.microsoft.com/en-us/entra/identity-platform/custom-claims-provider-configure-custom-extension>

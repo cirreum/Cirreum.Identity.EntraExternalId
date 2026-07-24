@@ -37,9 +37,8 @@ For each enabled instance in `Cirreum:Identity:Providers:EntraExternalId:Instanc
 5. Check `clientServicePrincipal.appId` against `AllowedAppIds` when the allowlist is configured (403 on mismatch).
 6. Resolve `IUserProvisioner` keyed by `settings.Source` (= instance key).
 7. Invoke `ProvisionAsync` with the built `ProvisionContext`.
-8. Map `ProvisionResult`:
-   - `Allowed { Roles: [...] }` → 200 with Microsoft-shaped response envelope (customRoles + correlationId embedded)
-   - `Allowed { Roles: [] }` → 500 (provisioner bug — allow-no-roles)
+8. Wrap the provisioner call in `ProvisioningTelemetry.StartProvision("entra", Source)` and map `ProvisionResult`:
+   - `Allowed { Claims }` → 200 with Microsoft-shaped response envelope. `Claims.ToClaimMap()` projects each `custom*` claim onto the wire as a flat inline member via `[JsonExtensionData]` (single-valued → scalar; roles / multi-valued → array). An empty claim set is valid — 200 with only `correlationId`.
    - `Denied` → **403 Forbidden** (no body — Entra treats any non-200 as failure)
    - Exception → 500
 
@@ -53,7 +52,7 @@ For each enabled instance in `Cirreum:Identity:Providers:EntraExternalId:Instanc
 | `EntraExternalIdHandler` | `Cirreum.Identity.EntraExternalId` | internal | HTTP handler |
 | `EntraTokenValidator` | `Cirreum.Identity.EntraExternalId` | internal | OIDC-discovery JWT validation |
 | `EntraExternalIdJsonContext` | `Cirreum.Identity.EntraExternalId` | internal | Source-gen JSON context |
-| `EntraClaimsRequest` / `EntraClaimsResponse` + nested records | `Cirreum.Identity.EntraExternalId.Models` | internal | Microsoft wire DTOs |
+| `EntraClaimsRequest` / `EntraClaimsResponse` + nested types | `Cirreum.Identity.EntraExternalId.Models` | internal | Microsoft wire DTOs; `EntraClaimsPayload` carries `correlationId` + a `[JsonExtensionData]` bag of flat `custom*` claims (`From(correlationId, map)` does the scalar-vs-array projection) |
 
 ### RootNamespace
 
@@ -68,12 +67,12 @@ The csproj sets `<RootNamespace>Cirreum.Identity</RootNamespace>` so folder conv
 
 - **`Issuer` MUST use the tenant-ID subdomain format** (`https://<tenant-id>.ciamlogin.com/<tenant-id>/v2.0`), NOT the domain-name format. Wrong format causes silent token-validation failure.
 - **`acceptMappedClaims`** must be set to `true` in the app manifest's `api` section — no Azure Portal UI toggle exists.
-- **`customRoles` is the custom claim name** issued here; clients remap it to `roles` before `ClaimsPrincipal` construction (e.g. via an `IClaimsExtender`).
+- **Every minted claim is `custom*`** (`customRoles`, `customName`, …) — the namespace makes collision with a native Entra claim structurally impossible. Clients canonicalize `customRoles → roles`, `customName → name`, … before `ClaimsPrincipal` construction (e.g. via an `IClaimsExtender`).
 - **`EntraAppId` default (`99045fe1-7639-4a75-9d4a-577b6ca3810f`)** is Microsoft's service-app ID for all Entra External ID tenants — override only if Microsoft changes it.
 
 ## Dependencies
 
-- **Cirreum.IdentityProvider** (v1.0.1+) — base registrar, provisioning contracts, settings base types
+- **Cirreum.IdentityProvider** (v2.0.0+) — base registrar, provisioning contracts (`IProvisionedIdentity`, `IdentityClaim`, `ProvisionResult.Allow(claims)`, `ToClaimMap`, `ProvisioningTelemetry`), settings base types
 - **Microsoft.IdentityModel.Protocols.OpenIdConnect** — OIDC discovery / JWKS fetch
 - **System.IdentityModel.Tokens.Jwt** — JWT validation
 - **Microsoft.AspNetCore.App** — `IEndpointRouteBuilder`, `HttpRequest`, `Results`, etc.
